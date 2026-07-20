@@ -45,32 +45,45 @@ jobs:
             exit 1
           fi
           
-          # Create service payload with ownerID
-          cat > /tmp/service_payload.json << EOF
-          {
-            "service": {
-              "type": "web",
-              "name": "text-to-sql",
-              "ownerId": "$RENDER_OWNER_ID",
-              "repo": "https://github.com/Dc1622/text-to-sql-app",
-              "branch": "main",
-              "buildCommand": "mvn clean package -DskipTests",
-              "startCommand": "java -jar target/text-to-sql-1.0-SNAPSHOT.jar",
-              "envVars": [
-                {
-                  "key": "PORT",
-                  "value": "8080"
-                },
-                {
-                  "key": "GEMINI_API_KEY",
-                  "value": "$GEMINI_API_KEY"
-                }
-              ]
-            }
-          }
-          EOF
+          if [ -z "$RENDER_OWNER_ID" ]; then
+            echo "Error: RENDER_OWNER_ID is not set"
+            exit 1
+          fi
           
+          echo "Owner ID: $RENDER_OWNER_ID"
+          echo "Creating JSON payload..."
+          
+          # Use jq to safely create JSON
+          jq -n \
+            --arg owner_id "$RENDER_OWNER_ID" \
+            --arg gemini_key "$GEMINI_API_KEY" \
+            '{
+              "service": {
+                "type": "web",
+                "name": "text-to-sql",
+                "ownerId": $owner_id,
+                "repo": "https://github.com/Dc1622/text-to-sql-app",
+                "branch": "main",
+                "buildCommand": "mvn clean package -DskipTests",
+                "startCommand": "java -jar target/text-to-sql-1.0-SNAPSHOT.jar",
+                "envVars": [
+                  {
+                    "key": "PORT",
+                    "value": "8080"
+                  },
+                  {
+                    "key": "GEMINI_API_KEY",
+                    "value": $gemini_key
+                  }
+                ]
+              }
+            }' > /tmp/service_payload.json
+          
+          echo "Payload created:"
+          cat /tmp/service_payload.json | head -20
+          echo ""
           echo "Sending service creation request to Render..."
+          
           response=$(curl -s -w "\n%{http_code}" -X POST "https://api.render.com/v1/services" \
             -H "Authorization: Bearer ${RENDER_API_KEY}" \
             -H "Content-Type: application/json" \
@@ -79,19 +92,15 @@ jobs:
           http_code=$(echo "$response" | tail -n1)
           body=$(echo "$response" | head -n-1)
           
-          echo "Response: $body"
           echo "HTTP Status: $http_code"
+          echo "Response: $body"
           
           if [ "$http_code" -ge 400 ]; then
             echo "Error: Render API returned error status $http_code"
-            echo "Response body: $body"
             exit 1
           fi
           
-          # Extract service ID from response
-          service_id=$(echo "$body" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
           echo "✓ Service created/updated successfully!"
-          echo "Service ID: $service_id"
           echo "Monitor at: https://dashboard.render.com"
 
       - name: Wait for deployment
