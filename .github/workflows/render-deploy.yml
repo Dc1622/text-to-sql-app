@@ -27,20 +27,17 @@ jobs:
       - name: Verify build artifacts
         run: ls -lh target/*.jar
 
-      - name: Deploy to Render
+      - name: Deploy to Render using render.yaml
         env:
           RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
-          RENDER_SERVICE_ID: srv-cn1a25k3esus73b4opqg
         run: |
-          echo "Triggering Render deployment..."
-          curl -X POST https://api.render.com/v1/services/${RENDER_SERVICE_ID}/deploys \
+          echo "Creating/Updating Render service using render.yaml..."
+          curl -X POST https://api.render.com/v1/services \
             -H "Authorization: Bearer ${RENDER_API_KEY}" \
-            -H "Content-Type: application/json" \
-            -d '{
-              "clearCache": "clear_build_cache"
-            }'
+            -H "Content-Type: application/x-yaml" \
+            --data-binary @render.yaml
           
-          echo "Deployment triggered. Monitor at: https://dashboard.render.com/services/${RENDER_SERVICE_ID}"
+          echo "Service creation/update triggered. Monitor at: https://dashboard.render.com"
 
       - name: Wait for deployment
         run: sleep 30
