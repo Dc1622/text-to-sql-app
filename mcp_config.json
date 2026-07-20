@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "example-server": {
+      "transport": "stdio",
+      "command": "node",
+      "args": ["path/to/server/index.js"],
+      "env": {
+        "NODE_ENV": "production"
+      }
+    }
+  }
+}
