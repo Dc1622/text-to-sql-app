@@ -27,26 +27,39 @@ jobs:
       - name: Verify build artifacts
         run: ls -lh target/*.jar
 
-      - name: Deploy to Render using render.json
+      - name: Deploy to Render (trigger new deployment)
         env:
           RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+          RENDER_SERVICE_ID: srv-cn1a25k3esus73b4opqg
         run: |
-          echo "Creating/Updating Render service using render.json..."
+          echo "Triggering new deployment on Render service..."
           
           if [ -z "$RENDER_API_KEY" ]; then
             echo "Error: RENDER_API_KEY is not set"
             exit 1
           fi
           
-          response=$(curl -s -w "%{http_code}" -X POST https://api.render.com/v1/services \
+          if [ -z "$RENDER_SERVICE_ID" ]; then
+            echo "Error: RENDER_SERVICE_ID is not set"
+            exit 1
+          fi
+          
+          echo "Service ID: $RENDER_SERVICE_ID"
+          
+          # Create a temporary JSON file with the request body
+          cat > /tmp/deploy_request.json << 'EOF'
+          {}
+          EOF
+          
+          response=$(curl -s -w "\n%{http_code}" -X POST "https://api.render.com/v1/services/$RENDER_SERVICE_ID/deploys" \
             -H "Authorization: Bearer ${RENDER_API_KEY}" \
             -H "Content-Type: application/json" \
-            --data-binary @render.yaml)
+            -d @/tmp/deploy_request.json)
           
-          http_code="${response: -3}"
-          body="${response%???}"
+          http_code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | head -n-1)
           
-          echo "Render API response: $body"
+          echo "Response: $body"
           echo "HTTP Status: $http_code"
           
           if [ "$http_code" -ge 400 ]; then
@@ -54,7 +67,8 @@ jobs:
             exit 1
           fi
           
-          echo "Service creation/update triggered. Monitor at: https://dashboard.render.com"
+          echo "✓ Deployment triggered successfully"
+          echo "Monitor at: https://dashboard.render.com/services/$RENDER_SERVICE_ID"
 
       - name: Wait for deployment
         run: sleep 30
