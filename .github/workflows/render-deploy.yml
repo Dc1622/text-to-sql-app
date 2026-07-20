@@ -15,7 +15,7 @@ jobs:
       - name: Set up Java
         uses: actions/setup-java@v3
         with:
-          java-version: '21'
+          java-version: '17'
           distribution: 'temurin'
           cache: maven
 
@@ -32,10 +32,27 @@ jobs:
           RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
         run: |
           echo "Creating/Updating Render service using render.yaml..."
-          curl -X POST https://api.render.com/v1/services \
+          
+          if [ -z "$RENDER_API_KEY" ]; then
+            echo "Error: RENDER_API_KEY is not set"
+            exit 1
+          fi
+          
+          response=$(curl -s -w "%{http_code}" -X POST https://api.render.com/v1/services \
             -H "Authorization: Bearer ${RENDER_API_KEY}" \
             -H "Content-Type: application/x-yaml" \
-            --data-binary @render.yaml
+            --data-binary @render.yaml)
+          
+          http_code="${response: -3}"
+          body="${response%???}"
+          
+          echo "Render API response: $body"
+          echo "HTTP Status: $http_code"
+          
+          if [ "$http_code" -ge 400 ]; then
+            echo "Error: Render API returned error status $http_code"
+            exit 1
+          fi
           
           echo "Service creation/update triggered. Monitor at: https://dashboard.render.com"
 
@@ -43,14 +60,25 @@ jobs:
         run: sleep 30
 
       - name: Health check
+        continue-on-error: true
         run: |
+          SERVICE_URL="https://text-to-sql-app.onrender.com"
+          echo "Checking service health at $SERVICE_URL/api/health"
+          
           for i in {1..10}; do
             echo "Health check attempt $i..."
-            if curl -f https://text-to-sql-app.onrender.com/api/health 2>/dev/null; then
+            response=$(curl -s -w "%{http_code}" "$SERVICE_URL/api/health" 2>/dev/null)
+            http_code="${response: -3}"
+            
+            if [ "$http_code" = "200" ]; then
               echo "✓ Service is healthy"
               exit 0
             fi
+            
+            echo "Attempt $i failed with status $http_code"
             sleep 10
           done
-          echo "⚠ Service health check failed (may still be deploying)"
+          
+          echo "⚠ Service health check failed after 10 attempts (may still be deploying)"
+          echo "Check the Render dashboard for deployment status"
           exit 0
