@@ -30,6 +30,8 @@ jobs:
       - name: Deploy to Render (create/update service)
         env:
           RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+          RENDER_OWNER_ID: usr-d9eulfj7uimc73acdlgg
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
           echo "Creating/Updating Render service..."
           
@@ -38,12 +40,18 @@ jobs:
             exit 1
           fi
           
-          # Read render.yaml and convert to JSON for API
-          cat > /tmp/service_payload.json << 'EOF'
+          if [ -z "$GEMINI_API_KEY" ]; then
+            echo "Error: GEMINI_API_KEY is not set"
+            exit 1
+          fi
+          
+          # Create service payload with ownerID
+          cat > /tmp/service_payload.json << EOF
           {
             "service": {
               "type": "web",
               "name": "text-to-sql",
+              "ownerId": "$RENDER_OWNER_ID",
               "repo": "https://github.com/Dc1622/text-to-sql-app",
               "branch": "main",
               "buildCommand": "mvn clean package -DskipTests",
@@ -55,7 +63,7 @@ jobs:
                 },
                 {
                   "key": "GEMINI_API_KEY",
-                  "value": "${{ secrets.GEMINI_API_KEY }}"
+                  "value": "$GEMINI_API_KEY"
                 }
               ]
             }
