@@ -7,25 +7,67 @@
   <style>
     body{font-family:Arial,helvetica,sans-serif;max-width:900px;margin:24px auto;padding:0 16px}
     textarea{width:100%;height:120px}
-    pre{background:#f6f8fa;padding:12px;border-radius:6px}
-    button{margin-right:8px}
-    table{width:100%;border-collapse:collapse;margin-top:12px}
-    th,td{border:1px solid #ddd;padding:8px;text-align:left}
+    pre{background:#f6f8fa;padding:12px;border-radius:6px;margin:0}
+    #sql{
+      max-height:50vh;
+      overflow-y:auto;
+      white-space:pre-wrap;
+      word-break:break-word;
+      line-height:1.5;
+    }
+    #sql.error{
+      background:#fff5f5;
+      border:1px solid #f5c2c2;
+      color:#8a1f1f;
+    }
+    #sql.sql-output{
+      background:#f6f8fa;
+      border:1px solid #d0d7de;
+      color:#24292f;
+    }
+    #sql.placeholder{
+      background:#f6f8fa;
+      border:1px solid #d0d7de;
+      color:#656d76;
+    }
+    button{margin-right:8px;padding:8px 14px;border:1px solid #ccc;border-radius:6px;background:#fff;cursor:pointer}
+    button:disabled{opacity:.55;cursor:not-allowed}
+    button.primary{background:#0969da;color:#fff;border-color:#0969da}
+    button.primary:hover:not(:disabled){background:#0757b2}
+    button.secondary:hover:not(:disabled){background:#f6f8fa}
+    #results{
+      white-space:pre-wrap;
+      word-break:break-word;
+      line-height:1.5;
+      padding:12px;
+      border-radius:6px;
+      margin:0;
+    }
+    #results.placeholder,#results.status{
+      background:#f6f8fa;
+      border:1px solid #d0d7de;
+      color:#656d76;
+    }
+    #results.answer{
+      background:#f6fff8;
+      border:1px solid #b7ebc6;
+      color:#1a4731;
+    }
   </style>
 </head>
 <body>
-  <h1>Natural Language → SQL (Strict)</h1>
+  <h1>Natural Language → SQL</h1>
   <p>Enter a question about the data (examples: "show users", "list orders for alice").</p>
   <textarea id="nl" placeholder="Ask about users, orders, products..."></textarea>
   <div style="margin-top:8px">
-    <button id="suggest">Suggest SQL</button>
-    <button id="run" disabled>Run SQL</button>
+    <button id="suggest" class="primary" type="button">Suggest Query</button>
+    <button id="run" class="secondary" type="button" disabled>Run Query</button>
     <button id="clear">Clear</button>
   </div>
   <h3>Suggested SQL</h3>
   <pre id="sql">(no suggestion yet)</pre>
-  <h3>Results</h3>
-  <div id="results">(no results yet)</div>
+  <h3>Answer</h3>
+  <pre id="results" class="placeholder">(no answer yet)</pre>
 
   <script src="/app.js"></script>
 </body>

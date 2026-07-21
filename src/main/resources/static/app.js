@@ -5,86 +5,131 @@ const clearBtn = document.getElementById('clear');
 const sqlEl = document.getElementById('sql');
 const resultsEl = document.getElementById('results');
 
-function replaceResults(nodeOrText) {
-  resultsEl.replaceChildren();
-  if (typeof nodeOrText === 'string') {
-    resultsEl.textContent = nodeOrText;
-    return;
+const SUGGEST_LABEL = 'Suggest Query';
+const RUN_LABEL = 'Run Query';
+const SQL_PLACEHOLDER = '(no suggestion yet)';
+const RESULTS_PLACEHOLDER = '(no answer yet)';
+
+function setResults(text, mode = 'placeholder') {
+  resultsEl.textContent = text;
+  resultsEl.classList.remove('placeholder', 'answer', 'status');
+  resultsEl.classList.add(mode);
+}
+
+function setButtonLoading(button, loading, loadingLabel, defaultLabel) {
+  button.disabled = loading;
+  button.textContent = loading ? loadingLabel : defaultLabel;
+}
+
+function setSqlPanel(text, mode) {
+  sqlEl.textContent = text;
+  sqlEl.classList.remove('error', 'sql-output', 'placeholder');
+  sqlEl.classList.add(mode);
+  sqlEl.dataset.state = mode === 'sql-output' ? 'sql' : mode === 'error' ? 'error' : 'empty';
+  runBtn.disabled = mode !== 'sql-output';
+}
+
+function formatError(data, fallback) {
+  const code = data?.error ? `[${data.error}] ` : '';
+  let message = data?.message || fallback || 'Request failed.';
+
+  message = String(message)
+    .replace(/<EOL>/g, '\n')
+    .replace(/\\n/g, '\n')
+    .replace(/\r\n/g, '\n');
+
+  const jsonMatch = message.match(/"message"\s*:\s*"([^"]+)"/);
+  if (jsonMatch) {
+    message = jsonMatch[1].replace(/\\n/g, '\n');
   }
-  resultsEl.appendChild(nodeOrText);
+
+  return (code + message)
+    .replace(/\{[\s\S]*\}/g, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
 }
 
-function renderPre(value) {
-  const pre = document.createElement('pre');
-  pre.textContent = value;
-  return pre;
-}
-
-function renderTable(rows) {
-  const cols = Object.keys(rows[0]);
-  const table = document.createElement('table');
-  const thead = document.createElement('thead');
-  const headerRow = document.createElement('tr');
-  cols.forEach((col) => {
-    const th = document.createElement('th');
-    th.textContent = col;
-    headerRow.appendChild(th);
-  });
-  thead.appendChild(headerRow);
-  table.appendChild(thead);
-
-  const tbody = document.createElement('tbody');
-  rows.forEach((row) => {
-    const tr = document.createElement('tr');
-    cols.forEach((col) => {
-      const td = document.createElement('td');
-      td.textContent = row[col] === null ? '' : String(row[col]);
-      tr.appendChild(td);
-    });
-    tbody.appendChild(tr);
-  });
-  table.appendChild(tbody);
-  return table;
+function hasRunnableSql() {
+  return sqlEl.dataset.state === 'sql' && sqlEl.textContent.trim().length > 0;
 }
 
 suggestBtn.addEventListener('click', async () => {
   const text = nl.value.trim();
-  if (!text) return alert('Please enter a question.');
-  sqlEl.textContent = 'Thinking...';
+  if (!text) {
+    setSqlPanel('Input text cannot be empty', 'error');
+    return;
+  }
+
+  setSqlPanel('Thinking...', 'placeholder');
   runBtn.disabled = true;
+  setButtonLoading(suggestBtn, true, 'Suggesting...', SUGGEST_LABEL);
+
   try {
-    const res = await fetch('/api/nlp-to-sql', { method: 'POST', headers:{'Content-Type':'text/plain'}, body: text });
-    if (!res.ok) throw new Error(await res.text());
-    const data = await res.json();
-    sqlEl.textContent = data.sql || '(no sql)';
-    runBtn.disabled = false;
-    replaceResults('');
+    const res = await fetch('/api/nlp-to-sql', { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: text });
+    const data = await res.json().catch(() => ({}));
+
+    if (!res.ok || data.error) {
+      setSqlPanel(formatError(data), 'error');
+      setResults(RESULTS_PLACEHOLDER, 'placeholder');
+      return;
+    }
+
+    setSqlPanel(data.sql || '(no sql returned)', 'sql-output');
+    setResults(RESULTS_PLACEHOLDER, 'placeholder');
   } catch (e) {
-    sqlEl.textContent = 'Error: ' + e.message;
-    runBtn.disabled = true;
+    setSqlPanel(formatError({}, e.message), 'error');
+    setResults(RESULTS_PLACEHOLDER, 'placeholder');
+  } finally {
+    setButtonLoading(suggestBtn, false, 'Suggesting...', SUGGEST_LABEL);
   }
 });
 
 runBtn.addEventListener('click', async () => {
+  if (!hasRunnableSql()) {
+    setSqlPanel('No valid SQL to run.\nUse Suggest Query first.', 'error');
+    return;
+  }
+
   const sql = sqlEl.textContent.trim();
-  if (!sql || sql.startsWith('Error')) return alert('No valid SQL to run.');
-  replaceResults('Running...');
+  const question = nl.value.trim();
+  setResults('Running query...', 'status');
+  setButtonLoading(runBtn, true, 'Running...', RUN_LABEL);
+  suggestBtn.disabled = true;
+
   try {
-    const res = await fetch('/api/query', { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ sql }) });
-    const data = await res.json();
-    if (data.error) {
-      replaceResults(renderPre(JSON.stringify(data, null, 2)));
+    const res = await fetch('/api/query', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sql, question })
+    });
+    const data = await res.json().catch(() => ({}));
+
+    if (!res.ok || data.error) {
+      setSqlPanel(formatError(data), 'error');
+      setResults(RESULTS_PLACEHOLDER, 'placeholder');
       return;
     }
-    const rows = data.rows || [];
-    if (rows.length === 0) { replaceResults('No rows'); return; }
-    replaceResults(renderTable(rows));
+
+    setResults(data.answer || 'No answer was returned.', 'answer');
   } catch (e) {
-    replaceResults(renderPre(e.message));
+    setSqlPanel(formatError({}, e.message), 'error');
+    setResults(RESULTS_PLACEHOLDER, 'placeholder');
+  } finally {
+    setButtonLoading(runBtn, false, 'Running...', RUN_LABEL);
+    suggestBtn.disabled = false;
+    if (sqlEl.dataset.state === 'sql') {
+      runBtn.disabled = false;
+    }
   }
 });
 
-clearBtn.addEventListener('click',()=>{ nl.value=''; sqlEl.textContent='(no suggestion yet)'; replaceResults('(no results yet)'); runBtn.disabled=true; });
+clearBtn.addEventListener('click', () => {
+  nl.value = '';
+  setSqlPanel(SQL_PLACEHOLDER, 'placeholder');
+  setResults(RESULTS_PLACEHOLDER, 'placeholder');
+  runBtn.disabled = true;
+});
 
-// Quick sample suggestions
+setSqlPanel(SQL_PLACEHOLDER, 'placeholder');
+setResults(RESULTS_PLACEHOLDER, 'placeholder');
 nl.value = 'List users with their email addresses';

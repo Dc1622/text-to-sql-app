@@ -70,6 +70,7 @@ public class QueryController {
         logger.info("Query execution request received");
         try {
             String sql = body.get("sql");
+            String question = body.get("question");
             if (sql == null || sql.trim().isEmpty()) {
                 logger.warn("No SQL provided in request");
                 Map<String, Object> error = new LinkedHashMap<>();
@@ -88,6 +89,7 @@ public class QueryController {
             result.put("rows", rows);
             result.put("rowCount", rows.size());
             result.put("sql", safe);
+            result.put("answer", nlp.summarizeResults(question, rows));
             
             logger.info("Query executed successfully, {} rows returned", rows.size());
             return ResponseEntity.ok(result);
