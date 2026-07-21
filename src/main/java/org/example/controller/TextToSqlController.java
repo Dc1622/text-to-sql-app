@@ -32,29 +32,24 @@ public class TextToSqlController {
         }
     }
 
-    @GetMapping("/health")
-    public ResponseEntity<Map<String, String>> health() {
-        return ResponseEntity.ok(Map.of("status", "healthy", "message", "Service is running"));
-    }
-
     private String generateSqlFromText(String text) {
         if (text == null || text.trim().isEmpty()) {
-            return "-- no input provided";
+            return "SELECT * FROM users WHERE 1=0 LIMIT 100";
         }
         
         Matcher m = FROM_TABLE.matcher(text);
         if (m.find()) {
             String table = m.group(1);
             if (isValidTableName(table)) {
-                return "SELECT * FROM " + sanitizeTableName(table) + ";";
+                return "SELECT * FROM " + sanitizeTableName(table) + " LIMIT 100";
             }
         }
         
         String lower = text.toLowerCase();
-        if (lower.contains("users")) return "SELECT * FROM users;";
-        if (lower.contains("orders")) return "SELECT * FROM orders;";
-        if (lower.contains("products")) return "SELECT * FROM products;";
-        return "SELECT * FROM your_table; -- refine with more context";
+        if (lower.contains("users")) return "SELECT * FROM users LIMIT 100";
+        if (lower.contains("orders")) return "SELECT * FROM orders LIMIT 100";
+        if (lower.contains("products")) return "SELECT * FROM products LIMIT 100";
+        return "SELECT * FROM users WHERE 1=0 LIMIT 100";
     }
 
     private boolean isValidTableName(String tableName) {

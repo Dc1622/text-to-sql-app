@@ -30,7 +30,7 @@ jobs:
       - name: Deploy to Render (create/update service)
         env:
           RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
-          RENDER_OWNER_ID: usr-d9eulfj7uimc73acdlgg
+          RENDER_OWNER_ID: tea-d9eulfj7uimc73acdle0
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
           echo "Creating/Updating Render service..."
@@ -53,53 +53,76 @@ jobs:
           echo "Owner ID: $RENDER_OWNER_ID"
           echo "Creating JSON payload..."
           
-          # Use jq to safely create JSON
+          SERVICE_NAME="text-to-sql"
+          REPO_URL="https://github.com/Dc1622/text-to-sql-app"
+
+          # Render API expects top-level fields (not wrapped in "service").
           jq -n \
             --arg owner_id "$RENDER_OWNER_ID" \
             --arg gemini_key "$GEMINI_API_KEY" \
+            --arg name "$SERVICE_NAME" \
+            --arg repo "$REPO_URL" \
             '{
-              "service": {
-                "type": "web",
-                "name": "text-to-sql",
-                "ownerId": $owner_id,
-                "repo": "https://github.com/Dc1622/text-to-sql-app",
-                "branch": "main",
-                "buildCommand": "mvn clean package -DskipTests",
-                "startCommand": "java -jar target/text-to-sql-1.0-SNAPSHOT.jar",
-                "envVars": [
-                  {
-                    "key": "PORT",
-                    "value": "8080"
-                  },
-                  {
-                    "key": "GEMINI_API_KEY",
-                    "value": $gemini_key
-                  }
-                ]
+              "type": "web_service",
+              "name": $name,
+              "ownerId": $owner_id,
+              "repo": $repo,
+              "branch": "main",
+              "autoDeploy": "yes",
+              "envVars": [
+                {
+                  "key": "PORT",
+                  "value": "8080"
+                },
+                {
+                  "key": "GEMINI_API_KEY",
+                  "value": $gemini_key
+                }
+              ],
+              "serviceDetails": {
+                "runtime": "docker",
+                "plan": "free",
+                "healthCheckPath": "/api/health",
+                "envSpecificDetails": {
+                  "dockerContext": ".",
+                  "dockerfilePath": "./Dockerfile"
+                }
               }
             }' > /tmp/service_payload.json
-          
-          echo "Payload created:"
-          cat /tmp/service_payload.json | head -20
-          echo ""
-          echo "Sending service creation request to Render..."
-          
-          response=$(curl -s -w "\n%{http_code}" -X POST "https://api.render.com/v1/services" \
+
+          echo "Payload created for $SERVICE_NAME (secret values omitted from logs)."
+
+          existing_service_id=$(curl -s "https://api.render.com/v1/services?limit=100" \
             -H "Authorization: Bearer ${RENDER_API_KEY}" \
-            -H "Content-Type: application/json" \
-            -d @/tmp/service_payload.json)
-          
+            -H "Accept: application/json" | \
+            jq -r --arg name "$SERVICE_NAME" '.[] | select(.service.name == $name) | .service.id' | head -n1)
+
+          if [ -n "$existing_service_id" ] && [ "$existing_service_id" != "null" ]; then
+            echo "Service already exists ($existing_service_id). Triggering deploy..."
+            response=$(curl -s -w "\n%{http_code}" -X POST \
+              "https://api.render.com/v1/services/${existing_service_id}/deploys" \
+              -H "Authorization: Bearer ${RENDER_API_KEY}" \
+              -H "Content-Type: application/json" \
+              -d '{}')
+          else
+            echo "Sending service creation request to Render..."
+            response=$(curl -s -w "\n%{http_code}" -X POST "https://api.render.com/v1/services" \
+              -H "Authorization: Bearer ${RENDER_API_KEY}" \
+              -H "Content-Type: application/json" \
+              -d @/tmp/service_payload.json)
+          fi
+
           http_code=$(echo "$response" | tail -n1)
           body=$(echo "$response" | head -n-1)
-          
+
           echo "HTTP Status: $http_code"
           echo "Response: $body"
-          
+
           if [ "$http_code" -ge 400 ]; then
             echo "Error: Render API returned error status $http_code"
             exit 1
           fi
-          
+
           echo "✓ Service created/updated successfully!"
           echo "Monitor at: https://dashboard.render.com"
 

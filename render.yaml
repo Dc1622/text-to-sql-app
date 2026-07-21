@@ -1,17 +1,13 @@
-{
-  "service": {
-    "type": "web",
-    "name": "text-to-sql",
-    "env": "java",
-    "plan": "free",
-    "buildCommand": "mvn clean package -DskipTests",
-    "startCommand": "java -jar target/text-to-sql-1.0-SNAPSHOT.jar",
-    "envVars": [
-      {
-        "key": "PORT",
-        "value": "8080"
-      }
-    ]
-  }
-}
-
+services:
+  - type: web
+    name: text-to-sql
+    env: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/health
+    envVars:
+      - key: PORT
+        value: 8080
+      - key: GEMINI_API_KEY
+        sync: false

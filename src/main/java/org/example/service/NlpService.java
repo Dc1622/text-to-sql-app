@@ -69,6 +69,7 @@ public class NlpService {
         }
     }
 
+    @SuppressWarnings("unchecked")
     private String callGeminiApi(String systemPrompt, String userPrompt) {
         logger.info("Calling Gemini API endpoint: {}", GEMINI_ENDPOINT);
         
@@ -97,21 +98,6 @@ public class NlpService {
             generationConfig.put("topK", 5);
             generationConfig.put("maxOutputTokens", 256);
             payload.put("generationConfig", generationConfig);
-            
-            List<Map<String, String>> safetySettings = new ArrayList<>();
-            String[] harmCategories = {
-                "HARM_CATEGORY_UNSPECIFIED",
-                "HARM_CATEGORY_UNSPECIFIED",
-                "HARM_CATEGORY_VIOLENCE",
-                "HARM_CATEGORY_HARASSMENT"
-            };
-            for (String category : harmCategories) {
-                Map<String, String> setting = new LinkedHashMap<>();
-                setting.put("category", category);
-                setting.put("threshold", "BLOCK_NONE");
-                safetySettings.add(setting);
-            }
-            payload.put("safetySettings", safetySettings);
             
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
@@ -174,7 +160,7 @@ public class NlpService {
             logger.info("Found {} tables in database", tables.size());
             
             for (String t : tables) {
-                List<Map<String, Object>> cols = jdbc.queryForList("PRAGMA table_info('" + t + "')");
+                List<Map<String, Object>> cols = jdbc.queryForList("PRAGMA table_info(" + quoteIdentifier(t) + ")");
                 Set<String> colNames = new HashSet<>();
                 for (Map<String, Object> c : cols) {
                     colNames.add(c.get("name").toString());
@@ -225,7 +211,10 @@ public class NlpService {
         for (Map.Entry<String, Set<String>> e : schema.entrySet()) {
             sb.append(e.getKey()).append(": ").append(String.join(", ", e.getValue())).append("\n");
         }
-        sb.append("\nIf the user asks for data not present in the schema, return a safe query that returns zero rows, e.g. SELECT 0 WHERE 1=0");
+        String fallbackTable = schema.keySet().stream().findFirst().orElse("users");
+        sb.append("\nIf the user asks for data not present in the schema, return a safe query against an existing table that returns zero rows, e.g. SELECT * FROM ")
+            .append(fallbackTable)
+            .append(" WHERE 1=0");
         return sb.toString();
     }
 
@@ -254,7 +243,7 @@ public class NlpService {
         // Disallow dangerous keywords
         String[] forbidden = new String[]{"INSERT","UPDATE","DELETE","DROP","ALTER","CREATE","PRAGMA","ATTACH","VACUUM","EXEC","MERGE"};
         for (String f : forbidden) {
-            if (upper.contains(f)) {
+            if (Pattern.compile("\\b" + f + "\\b").matcher(upper).find()) {
                 logger.error("Forbidden keyword detected: {}", f);
                 throw new IllegalArgumentException("Forbidden SQL keyword detected: " + f);
             }
@@ -291,7 +280,7 @@ public class NlpService {
         }
         
         // Validate selected columns
-        Pattern selectPattern = Pattern.compile("(?i)^select\s+(.*?)\s+from\s", Pattern.DOTALL);
+        Pattern selectPattern = Pattern.compile("(?i)^select\\s+(.*?)\\s+from\\s", Pattern.DOTALL);
         m = selectPattern.matcher(cleaned);
         if (m.find()) {
             String colsPart = m.group(1);
@@ -329,6 +318,10 @@ public class NlpService {
         
         logger.info("SQL validation passed");
         return cleaned;
+    }
+
+    private String quoteIdentifier(String identifier) {
+        return "\"" + identifier.replace("\"", "\"\"") + "\"";
     }
 
 }

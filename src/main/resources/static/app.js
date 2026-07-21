@@ -5,6 +5,48 @@ const clearBtn = document.getElementById('clear');
 const sqlEl = document.getElementById('sql');
 const resultsEl = document.getElementById('results');
 
+function replaceResults(nodeOrText) {
+  resultsEl.replaceChildren();
+  if (typeof nodeOrText === 'string') {
+    resultsEl.textContent = nodeOrText;
+    return;
+  }
+  resultsEl.appendChild(nodeOrText);
+}
+
+function renderPre(value) {
+  const pre = document.createElement('pre');
+  pre.textContent = value;
+  return pre;
+}
+
+function renderTable(rows) {
+  const cols = Object.keys(rows[0]);
+  const table = document.createElement('table');
+  const thead = document.createElement('thead');
+  const headerRow = document.createElement('tr');
+  cols.forEach((col) => {
+    const th = document.createElement('th');
+    th.textContent = col;
+    headerRow.appendChild(th);
+  });
+  thead.appendChild(headerRow);
+  table.appendChild(thead);
+
+  const tbody = document.createElement('tbody');
+  rows.forEach((row) => {
+    const tr = document.createElement('tr');
+    cols.forEach((col) => {
+      const td = document.createElement('td');
+      td.textContent = row[col] === null ? '' : String(row[col]);
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  });
+  table.appendChild(tbody);
+  return table;
+}
+
 suggestBtn.addEventListener('click', async () => {
   const text = nl.value.trim();
   if (!text) return alert('Please enter a question.');
@@ -16,7 +58,7 @@ suggestBtn.addEventListener('click', async () => {
     const data = await res.json();
     sqlEl.textContent = data.sql || '(no sql)';
     runBtn.disabled = false;
-    resultsEl.innerHTML = '';
+    replaceResults('');
   } catch (e) {
     sqlEl.textContent = 'Error: ' + e.message;
     runBtn.disabled = true;
@@ -26,27 +68,23 @@ suggestBtn.addEventListener('click', async () => {
 runBtn.addEventListener('click', async () => {
   const sql = sqlEl.textContent.trim();
   if (!sql || sql.startsWith('Error')) return alert('No valid SQL to run.');
-  resultsEl.innerHTML = 'Running...';
+  replaceResults('Running...');
   try {
     const res = await fetch('/api/query', { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ sql }) });
     const data = await res.json();
     if (data.error) {
-      resultsEl.innerHTML = '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+      replaceResults(renderPre(JSON.stringify(data, null, 2)));
       return;
     }
     const rows = data.rows || [];
-    if (rows.length === 0) { resultsEl.innerHTML = '<div>No rows</div>'; return; }
-    const cols = Object.keys(rows[0]);
-    let html = '<table><thead><tr>' + cols.map(c=>'<th>'+c+'</th>').join('') + '</tr></thead><tbody>';
-    html += rows.map(r=>'<tr>'+cols.map(c=>'<td>'+String(r[c]===null?'':r[c])+'</td>').join('')+'</tr>').join('');
-    html += '</tbody></table>';
-    resultsEl.innerHTML = html;
+    if (rows.length === 0) { replaceResults('No rows'); return; }
+    replaceResults(renderTable(rows));
   } catch (e) {
-    resultsEl.innerHTML = '<pre>' + e.message + '</pre>';
+    replaceResults(renderPre(e.message));
   }
 });
 
-clearBtn.addEventListener('click',()=>{ nl.value=''; sqlEl.textContent='(no suggestion yet)'; resultsEl.innerHTML='(no results yet)'; runBtn.disabled=true; });
+clearBtn.addEventListener('click',()=>{ nl.value=''; sqlEl.textContent='(no suggestion yet)'; replaceResults('(no results yet)'); runBtn.disabled=true; });
 
 // Quick sample suggestions
 nl.value = 'List users with their email addresses';
