@@ -3,6 +3,9 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
   <title>Text → SQL</title>
   <style>
     body{font-family:Arial,helvetica,sans-serif;max-width:900px;margin:24px auto;padding:0 16px}
@@ -35,23 +38,35 @@
     button.primary{background:#0969da;color:#fff;border-color:#0969da}
     button.primary:hover:not(:disabled){background:#0757b2}
     button.secondary:hover:not(:disabled){background:#f6f8fa}
-    #results{
-      white-space:pre-wrap;
-      word-break:break-word;
-      line-height:1.5;
-      padding:12px;
-      border-radius:6px;
-      margin:0;
-    }
     #results.placeholder,#results.status{
       background:#f6f8fa;
       border:1px solid #d0d7de;
       color:#656d76;
+      padding:12px;
+      border-radius:6px;
     }
-    #results.answer{
-      background:#f6fff8;
-      border:1px solid #b7ebc6;
-      color:#1a4731;
+    #results.has-table{
+      padding:0;
+      background:transparent;
+      border:none;
+    }
+    #results table{
+      width:100%;
+      border-collapse:collapse;
+      margin-top:0;
+    }
+    #results th,#results td{
+      border:1px solid #ddd;
+      padding:8px;
+      text-align:left;
+    }
+    #results th{
+      background:#f6f8fa;
+    }
+    #results .row-count{
+      margin:0 0 8px;
+      color:#656d76;
+      font-size:14px;
     }
   </style>
 </head>
@@ -60,15 +75,15 @@
   <p>Enter a question about the data (examples: "show users", "list orders for alice").</p>
   <textarea id="nl" placeholder="Ask about users, orders, products..."></textarea>
   <div style="margin-top:8px">
-    <button id="suggest" class="primary" type="button">Suggest Query</button>
+    <button id="suggest" class="primary" type="button">Suggest Questions</button>
     <button id="run" class="secondary" type="button" disabled>Run Query</button>
     <button id="clear">Clear</button>
   </div>
-  <h3>Suggested SQL</h3>
-  <pre id="sql">(no suggestion yet)</pre>
-  <h3>Answer</h3>
-  <pre id="results" class="placeholder">(no answer yet)</pre>
+  <h3>Suggested Questions</h3>
+  <div id="questions" class="placeholder">(no questions yet)</div>
+  <h3>Results</h3>
+  <div id="results" class="placeholder">(no results yet)</div>
 
-  <script src="/app.js"></script>
+  <script src="/app.js?v=2"></script>
 </body>
 </html>

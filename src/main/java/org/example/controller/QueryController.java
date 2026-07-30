@@ -38,11 +38,14 @@ public class QueryController {
             }
             
             String sql = nlp.toSql(text);
+            String questions = nlp.generateSuggestedQuestions(text);
+            
             Map<String, Object> result = new LinkedHashMap<>();
             result.put("input", text);
             result.put("sql", sql);
+            result.put("questions", questions);
             
-            logger.info("Successfully converted NLP to SQL");
+            logger.info("Successfully converted NLP to SQL and generated questions");
             return ResponseEntity.ok(result);
         } catch (IllegalStateException e) {
             logger.error("LLM not available: {}", e.getMessage());

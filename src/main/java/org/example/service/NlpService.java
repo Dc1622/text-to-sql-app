@@ -2,6 +2,7 @@ package org.example.service;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -12,6 +13,8 @@ import org.springframework.web.client.RestTemplate;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -21,14 +24,40 @@ public class NlpService {
     private static final Logger logger = LoggerFactory.getLogger(NlpService.class);
     private final RestTemplate rest = new RestTemplate();
     private final JdbcTemplate jdbc;
-    private final String geminiKey;
-    private static final String GEMINI_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent";
+    @Value("${GEMINI_API_KEY:}")
+    private String geminiKey;
+    @Value("${NL_ALLOW_HEURISTIC:false}")
+    private String allowHeuristic;
+    private static final String GEMINI_ENDPOINT = "https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash-001:generateContent";
     private static final Pattern MARKDOWN_FENCE = Pattern.compile("(?is)```(?:sql)?\\s*(.*?)\\s*```");
     private static final Pattern FIRST_SELECT = Pattern.compile("(?is)\\bselect\\b.+");
 
     public NlpService(JdbcTemplate jdbc) {
         this.jdbc = jdbc;
-        this.geminiKey = System.getenv("GEMINI_API_KEY");
+        // Fallback to system environment if @Value injection didn't work
+        if (geminiKey == null || geminiKey.isEmpty()) {
+            geminiKey = System.getenv("GEMINI_API_KEY");
+        }
+        if (allowHeuristic == null || allowHeuristic.isEmpty()) {
+            allowHeuristic = System.getenv("NL_ALLOW_HEURISTIC");
+        }
+        // Final fallback: read from .env file
+        if (geminiKey == null || geminiKey.isEmpty()) {
+            try {
+                List<String> lines = Files.readAllLines(Paths.get(".env"));
+                for (String line : lines) {
+                    if (line.startsWith("GEMINI_API_KEY=")) {
+                        geminiKey = line.substring("GEMINI_API_KEY=".length()).trim();
+                        logger.info("Loaded GEMINI_API_KEY from .env file");
+                    }
+                    if (line.startsWith("NL_ALLOW_HEURISTIC=")) {
+                        allowHeuristic = line.substring("NL_ALLOW_HEURISTIC=".length()).trim();
+                    }
+                }
+            } catch (Exception e) {
+                logger.warn("Could not read .env file: {}", e.getMessage());
+            }
+        }
         logger.info("NlpService initialized. Gemini API Key present: {}", (geminiKey != null && !geminiKey.isEmpty()));
     }
 
@@ -40,7 +69,6 @@ public class NlpService {
             return "-- no input provided";
         }
         
-        String allowHeuristic = System.getenv("NL_ALLOW_HEURISTIC");
         if (geminiKey == null || geminiKey.isEmpty()) {
             if ("true".equalsIgnoreCase(allowHeuristic)) {
                 logger.info("GEMINI_API_KEY not set, using heuristic fallback (NL_ALLOW_HEURISTIC=true)");
@@ -324,25 +352,93 @@ public class NlpService {
     private String heuristic(String text) {
         logger.info("Using heuristic fallback for query: {}", text);
         String lower = text == null ? "" : text.toLowerCase();
+        
+        // Users queries with more specificity
         if (lower.contains("users")) {
-            logger.debug("Heuristic matched: users query");
+            if (lower.contains("email")) {
+                return "SELECT id, name, email FROM users LIMIT 100";
+            }
+            if (lower.contains("name") || lower.contains("find")) {
+                return "SELECT id, name, email FROM users LIMIT 100";
+            }
+            if (lower.contains("all") || lower.contains("show")) {
+                return "SELECT * FROM users LIMIT 100";
+            }
+            if (lower.contains("count") || lower.contains("how many")) {
+                return "SELECT COUNT(*) as count FROM users";
+            }
             return "SELECT id, name, email FROM users LIMIT 100";
         }
+        
+        // Orders queries with more specificity
         if (lower.contains("orders")) {
-            logger.debug("Heuristic matched: orders query");
+            if (lower.contains("recent") || lower.contains("latest")) {
+                return "SELECT * FROM orders ORDER BY created_at DESC LIMIT 100";
+            }
+            if (lower.contains("user") || lower.contains("customer")) {
+                return "SELECT * FROM orders LIMIT 100";
+            }
+            if (lower.contains("count") || lower.contains("how many")) {
+                return "SELECT COUNT(*) as count FROM orders";
+            }
             return "SELECT * FROM orders LIMIT 100";
         }
+        
+        // Products queries with more specificity
         if (lower.contains("products")) {
-            logger.debug("Heuristic matched: products query");
+            if (lower.contains("price") || lower.contains("cheap") || lower.contains("expensive")) {
+                return "SELECT * FROM products ORDER BY price LIMIT 100";
+            }
+            if (lower.contains("inventory") || lower.contains("stock")) {
+                return "SELECT name, stock_quantity FROM products LIMIT 100";
+            }
+            if (lower.contains("count") || lower.contains("how many")) {
+                return "SELECT COUNT(*) as count FROM products";
+            }
             return "SELECT * FROM products LIMIT 100";
         }
+        
+        // Generic FROM clause extraction
         java.util.regex.Matcher m = java.util.regex.Pattern.compile("\\bfrom\\s+([a-zA-Z_][a-zA-Z0-9_]*)", java.util.regex.Pattern.CASE_INSENSITIVE).matcher(text);
         if (m.find()) {
             logger.debug("Heuristic matched: FROM clause for table {}", m.group(1));
             return "SELECT * FROM " + m.group(1) + " LIMIT 100";
         }
+        
         logger.debug("Heuristic: no match, defaulting to users query");
         return "SELECT * FROM users LIMIT 10";
+    }
+
+    public String generateSuggestedQuestions(String text) {
+        logger.info("Generating suggested questions for: {}", text);
+        String lower = text == null ? "" : text.toLowerCase();
+        
+        StringBuilder sb = new StringBuilder();
+        sb.append("Here are some suggested questions you can ask:\n\n");
+        
+        if (lower.contains("users") || lower.isEmpty()) {
+            sb.append("- Show all users\n");
+            sb.append("- List users with their email addresses\n");
+            sb.append("- Find users by name\n");
+        }
+        if (lower.contains("orders") || lower.isEmpty()) {
+            sb.append("- Show all orders\n");
+            sb.append("- List orders for a specific user\n");
+            sb.append("- Show recent orders\n");
+        }
+        if (lower.contains("products") || lower.isEmpty()) {
+            sb.append("- Show all products\n");
+            sb.append("- List products under a certain price\n");
+            sb.append("- Show product inventory\n");
+        }
+        
+        if (sb.toString().equals("Here are some suggested questions you can ask:\n\n")) {
+            sb.append("- Show all users\n");
+            sb.append("- List all orders\n");
+            sb.append("- Show all products\n");
+        }
+        
+        return sb.toString();
     }
 
     private String buildSystemPrompt(Map<String, Set<String>> schema) {
