@@ -24,9 +24,7 @@ public class NlpService {
     private static final Logger logger = LoggerFactory.getLogger(NlpService.class);
     private final RestTemplate rest = new RestTemplate();
     private final JdbcTemplate jdbc;
-    @Value("${GEMINI_API_KEY:}")
     private String geminiKey;
-    @Value("${NL_ALLOW_HEURISTIC:false}")
     private String allowHeuristic;
     private static final String GEMINI_ENDPOINT = "https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash-001:generateContent";
     private static final Pattern MARKDOWN_FENCE = Pattern.compile("(?is)```(?:sql)?\\s*(.*?)\\s*```");
@@ -34,19 +32,11 @@ public class NlpService {
 
     public NlpService(JdbcTemplate jdbc) {
         this.jdbc = jdbc;
-        logger.info("NlpService constructor called");
-    }
-
-    @jakarta.annotation.PostConstruct
-    public void init() {
-        // Fallback to system environment if @Value injection didn't work
-        if (geminiKey == null || geminiKey.isEmpty()) {
-            geminiKey = System.getenv("GEMINI_API_KEY");
-        }
-        if (allowHeuristic == null || allowHeuristic.isEmpty()) {
-            allowHeuristic = System.getenv("NL_ALLOW_HEURISTIC");
-        }
-        // Final fallback: read from .env file (only for local development)
+        // Load from environment variables
+        this.geminiKey = System.getenv("GEMINI_API_KEY");
+        this.allowHeuristic = System.getenv("NL_ALLOW_HEURISTIC");
+        
+        // Fallback to .env file for local development
         if (geminiKey == null || geminiKey.isEmpty()) {
             try {
                 List<String> lines = Files.readAllLines(Paths.get(".env"));
@@ -63,6 +53,11 @@ public class NlpService {
                 logger.debug("Could not read .env file (expected in production): {}", e.getMessage());
             }
         }
+        
+        if (allowHeuristic == null || allowHeuristic.isEmpty()) {
+            allowHeuristic = "false";
+        }
+        
         logger.info("NlpService initialized. Gemini API Key present: {}", (geminiKey != null && !geminiKey.isEmpty()));
     }
 
