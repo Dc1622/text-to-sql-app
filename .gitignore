@@ -42,3 +42,4 @@ build/
 tokens.txt
 *.sqlite
 *.db
+.env
