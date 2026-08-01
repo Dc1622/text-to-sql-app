@@ -37,7 +37,7 @@ public class NlpService {
         logger.info("NlpService constructor called");
     }
 
-    @javax.annotation.PostConstruct
+    @jakarta.annotation.PostConstruct
     public void init() {
         // Fallback to system environment if @Value injection didn't work
         if (geminiKey == null || geminiKey.isEmpty()) {
