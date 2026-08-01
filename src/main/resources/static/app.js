@@ -5,8 +5,10 @@ const clearBtn = document.getElementById('clear');
 const questionsEl = document.getElementById('questions');
 const resultsEl = document.getElementById('results');
 
-const SUGGEST_LABEL = 'Suggest Questions';
-const RUN_LABEL = 'Run Query';
+const SUGGEST_LABEL = '✨ Suggest Questions';
+const RUN_LABEL = '▶ Run Query';
+const SUGGESTING_LABEL = '⏳ Suggesting...';
+const RUNNING_LABEL = '⏳ Running...';
 const QUESTIONS_PLACEHOLDER = '(no questions yet)';
 const RESULTS_PLACEHOLDER = '(no results yet)';
 
@@ -103,7 +105,7 @@ suggestBtn.addEventListener('click', async () => {
 
   setQuestionsPanel('Thinking...', 'placeholder');
   runBtn.disabled = true;
-  setButtonLoading(suggestBtn, true, 'Suggesting...', SUGGEST_LABEL);
+  setButtonLoading(suggestBtn, true, SUGGESTING_LABEL, SUGGEST_LABEL);
 
   try {
     const res = await fetch('/api/nlp-to-sql', { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: text });
@@ -122,7 +124,7 @@ suggestBtn.addEventListener('click', async () => {
     setQuestionsPanel(formatError({}, e.message), 'error');
     setResultsMessage(RESULTS_PLACEHOLDER, 'placeholder');
   } finally {
-    setButtonLoading(suggestBtn, false, 'Suggesting...', SUGGEST_LABEL);
+    setButtonLoading(suggestBtn, false, SUGGESTING_LABEL, SUGGEST_LABEL);
   }
 });
 
@@ -133,7 +135,7 @@ runBtn.addEventListener('click', async () => {
     return;
   }
   setResultsMessage('Converting question to SQL and running query...', 'status');
-  setButtonLoading(runBtn, true, 'Running...', RUN_LABEL);
+  setButtonLoading(runBtn, true, RUNNING_LABEL, RUN_LABEL);
   suggestBtn.disabled = true;
 
   try {
@@ -171,7 +173,7 @@ runBtn.addEventListener('click', async () => {
     setQuestionsPanel(formatError({}, e.message), 'error');
     setResultsMessage(RESULTS_PLACEHOLDER, 'placeholder');
   } finally {
-    setButtonLoading(runBtn, false, 'Running...', RUN_LABEL);
+    setButtonLoading(runBtn, false, RUNNING_LABEL, RUN_LABEL);
     suggestBtn.disabled = false;
     if (questionsEl.dataset.state === 'sql') {
       runBtn.disabled = false;

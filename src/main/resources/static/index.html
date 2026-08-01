@@ -8,82 +8,291 @@
   <meta http-equiv="Expires" content="0" />
   <title>Text → SQL</title>
   <style>
-    body{font-family:Arial,helvetica,sans-serif;max-width:900px;margin:24px auto;padding:0 16px}
-    textarea{width:100%;height:120px}
-    pre{background:#f6f8fa;padding:12px;border-radius:6px;margin:0}
-    #sql{
-      max-height:50vh;
-      overflow-y:auto;
-      white-space:pre-wrap;
-      word-break:break-word;
-      line-height:1.5;
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
     }
-    #sql.error{
-      background:#fff5f5;
-      border:1px solid #f5c2c2;
-      color:#8a1f1f;
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 40px 20px;
+      color: #1a202c;
     }
-    #sql.sql-output{
-      background:#f6f8fa;
-      border:1px solid #d0d7de;
-      color:#24292f;
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
     }
-    #sql.placeholder{
-      background:#f6f8fa;
-      border:1px solid #d0d7de;
-      color:#656d76;
+
+    .header {
+      text-align: center;
+      margin-bottom: 40px;
+      color: white;
     }
-    button{margin-right:8px;padding:8px 14px;border:1px solid #ccc;border-radius:6px;background:#fff;cursor:pointer}
-    button:disabled{opacity:.55;cursor:not-allowed}
-    button.primary{background:#0969da;color:#fff;border-color:#0969da}
-    button.primary:hover:not(:disabled){background:#0757b2}
-    button.secondary:hover:not(:disabled){background:#f6f8fa}
-    #results.placeholder,#results.status{
-      background:#f6f8fa;
-      border:1px solid #d0d7de;
-      color:#656d76;
-      padding:12px;
-      border-radius:6px;
+
+    .header h1 {
+      font-size: 2.5rem;
+      font-weight: 700;
+      margin-bottom: 12px;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.1);
     }
-    #results.has-table{
-      padding:0;
-      background:transparent;
-      border:none;
+
+    .header p {
+      font-size: 1.1rem;
+      opacity: 0.95;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.1);
     }
-    #results table{
-      width:100%;
-      border-collapse:collapse;
-      margin-top:0;
+
+    .card {
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+      padding: 32px;
+      margin-bottom: 24px;
     }
-    #results th,#results td{
-      border:1px solid #ddd;
-      padding:8px;
-      text-align:left;
+
+    .input-section {
+      margin-bottom: 24px;
     }
-    #results th{
-      background:#f6f8fa;
+
+    textarea {
+      width: 100%;
+      height: 120px;
+      padding: 16px;
+      border: 2px solid #e2e8f0;
+      border-radius: 12px;
+      font-size: 1rem;
+      font-family: inherit;
+      resize: vertical;
+      transition: all 0.3s ease;
+      background: #f7fafc;
     }
-    #results .row-count{
-      margin:0 0 8px;
-      color:#656d76;
-      font-size:14px;
+
+    textarea:focus {
+      outline: none;
+      border-color: #667eea;
+      background: white;
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+
+    textarea::placeholder {
+      color: #a0aec0;
+    }
+
+    .button-group {
+      display: flex;
+      gap: 12px;
+      margin-top: 16px;
+      flex-wrap: wrap;
+    }
+
+    button {
+      padding: 12px 24px;
+      border: none;
+      border-radius: 10px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      font-family: inherit;
+    }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(102, 126, 234, 0.5);
+    }
+
+    .btn-secondary {
+      background: #f7fafc;
+      color: #4a5568;
+      border: 2px solid #e2e8f0;
+    }
+
+    .btn-secondary:hover:not(:disabled) {
+      background: #edf2f7;
+      border-color: #cbd5e0;
+    }
+
+    .btn-tertiary {
+      background: transparent;
+      color: #718096;
+      border: 2px solid transparent;
+    }
+
+    .btn-tertiary:hover:not(:disabled) {
+      color: #4a5568;
+      background: #f7fafc;
+    }
+
+    .section-title {
+      font-size: 1.25rem;
+      font-weight: 600;
+      color: #2d3748;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .section-title::before {
+      content: '';
+      width: 4px;
+      height: 24px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border-radius: 2px;
+    }
+
+    #questions, #results {
+      min-height: 60px;
+      padding: 16px;
+      border-radius: 10px;
+      transition: all 0.3s ease;
+    }
+
+    #questions.placeholder, #results.placeholder, #results.status {
+      background: #f7fafc;
+      border: 2px dashed #e2e8f0;
+      color: #a0aec0;
+      font-style: italic;
+    }
+
+    #questions.error {
+      background: #fff5f5;
+      border: 2px solid #fed7d7;
+      color: #c53030;
+    }
+
+    #questions.sql-output {
+      background: #f0fff4;
+      border: 2px solid #c6f6d5;
+      color: #276749;
+      white-space: pre-wrap;
+      word-break: break-word;
+      line-height: 1.6;
+      font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+      font-size: 0.95rem;
+    }
+
+    #results.has-table {
+      padding: 0;
+      background: transparent;
+      border: none;
+    }
+
+    #results table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      margin-top: 0;
+    }
+
+    #results th {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      font-weight: 600;
+      padding: 14px 16px;
+      text-align: left;
+      text-transform: uppercase;
+      font-size: 0.85rem;
+      letter-spacing: 0.5px;
+    }
+
+    #results th:first-child {
+      border-radius: 10px 0 0 0;
+    }
+
+    #results th:last-child {
+      border-radius: 0 10px 0 0;
+    }
+
+    #results td {
+      padding: 14px 16px;
+      border-bottom: 1px solid #e2e8f0;
+      color: #4a5568;
+    }
+
+    #results tr:last-child td {
+      border-bottom: none;
+    }
+
+    #results tr:hover td {
+      background: #f7fafc;
+    }
+
+    #results .row-count {
+      margin: 0 0 16px;
+      color: #718096;
+      font-size: 0.95rem;
+      font-weight: 500;
+    }
+
+    @media (max-width: 640px) {
+      body {
+        padding: 20px 16px;
+      }
+
+      .header h1 {
+        font-size: 2rem;
+      }
+
+      .card {
+        padding: 24px;
+        border-radius: 12px;
+      }
+
+      .button-group {
+        flex-direction: column;
+      }
+
+      button {
+        width: 100%;
+      }
     }
   </style>
 </head>
 <body>
-  <h1>Natural Language → SQL</h1>
-  <p>Enter a question about the data (examples: "show users", "list orders for alice").</p>
-  <textarea id="nl" placeholder="Ask about users, orders, products..."></textarea>
-  <div style="margin-top:8px">
-    <button id="suggest" class="primary" type="button">Suggest Questions</button>
-    <button id="run" class="secondary" type="button" disabled>Run Query</button>
-    <button id="clear">Clear</button>
-  </div>
-  <h3>Suggested Questions</h3>
-  <div id="questions" class="placeholder">(no questions yet)</div>
-  <h3>Results</h3>
-  <div id="results" class="placeholder">(no results yet)</div>
+  <div class="container">
+    <div class="header">
+      <h1>Natural Language → SQL</h1>
+      <p>Transform your questions into database queries using AI</p>
+    </div>
 
-  <script src="/app.js?v=2"></script>
+    <div class="card">
+      <div class="input-section">
+        <textarea id="nl" placeholder="Ask about users, orders, products... (e.g., 'Show all users with their email addresses')"></textarea>
+      </div>
+      <div class="button-group">
+        <button id="suggest" class="btn-primary" type="button">✨ Suggest Questions</button>
+        <button id="run" class="btn-secondary" type="button" disabled>▶ Run Query</button>
+        <button id="clear" class="btn-tertiary" type="button">🗑 Clear</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3 class="section-title">Suggested Questions</h3>
+      <div id="questions" class="placeholder">(no questions yet)</div>
+    </div>
+
+    <div class="card">
+      <h3 class="section-title">Results</h3>
+      <div id="results" class="placeholder">(no results yet)</div>
+    </div>
+  </div>
+
+  <script src="/app.js?v=3"></script>
 </body>
 </html>
