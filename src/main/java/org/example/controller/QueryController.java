@@ -113,11 +113,24 @@ public class QueryController {
     }
 
     @GetMapping("/health")
-    public ResponseEntity<Map<String, String>> health() {
+    public ResponseEntity<Map<String, Object>> health() {
         logger.debug("Health check requested");
-        Map<String, String> result = new LinkedHashMap<>();
-        result.put("status", "OK");
-        result.put("timestamp", String.valueOf(System.currentTimeMillis()));
-        return ResponseEntity.ok(result);
+        Map<String, Object> result = new LinkedHashMap<>();
+        
+        try {
+            // Check database connectivity
+            jdbc.queryForObject("SELECT 1", Integer.class);
+            result.put("status", "OK");
+            result.put("database", "connected");
+            result.put("timestamp", String.valueOf(System.currentTimeMillis()));
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            logger.error("Health check failed: {}", e.getMessage());
+            result.put("status", "ERROR");
+            result.put("database", "disconnected");
+            result.put("error", e.getMessage());
+            result.put("timestamp", String.valueOf(System.currentTimeMillis()));
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(result);
+        }
     }
 }
